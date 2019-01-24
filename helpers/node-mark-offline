@@ -63,7 +63,7 @@ elif [[ "$NHC_RM" == "slurm" ]]; then
     OLD_NOTE_LEADER="${LINE[1]}"
     OLD_NOTE="${LINE[*]:2}"
     case "$STATUS" in
-        alloc*|comp*|drain*|drng*|fail*|idle*|maint*|mix*|resume*|resv*|undrain*)
+        alloc*|comp*|drain*|drng*|fail*|idle*|maint*|mix*|resume*|resv*|undrain*|boot*)
             case "$STATUS" in
                 drain*|drng*|fail*|maint*)
                     # If the node is already offline, and there is no old note, and
@@ -73,9 +73,15 @@ elif [[ "$NHC_RM" == "slurm" ]]; then
                         exit 0
                     fi
                     ;;
+                boot*)
+                    if [[ "$OLD_NOTE_LEADER" != "Reboot ASAP" ]]; then
+                        echo "$0:  $HOSTNAME already set to retain DRAIN flag after reboot"
+                        exit 0
+                    fi
+                    ;;
             esac
             # If there's an old note that wasn't set by NHC, preserve it.
-            if [[ "$OLD_NOTE_LEADER" != "none" && "$OLD_NOTE_LEADER" != "$LEADER" ]]; then
+            if [[ "$OLD_NOTE_LEADER" != "none" && "$OLD_NOTE_LEADER" != "$LEADER" && "$OLD_NOTE_LEADER" != "Reboot ASAP" ]]; then
                 LEADER="$OLD_NOTE_LEADER"
                 NOTE="$OLD_NOTE"
             fi

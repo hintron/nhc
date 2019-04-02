@@ -74,12 +74,32 @@ elif [[ "$NHC_RM" == "slurm" ]]; then
                     fi
                     ;;
                 boot*)
+                    # Set node to DRAIN after a vanilla `scontrol reboot`, so
+                    # jobs can't run after reboot until NHC deems the node ready
+                    # Note: This won't happen while jobs are running, because
+                    # State would show MIXED@ or ALLOCATED@, not REBOOT.
+                    # See src/common/slurm_protocol_defs.c-->node_state_string()
+                    SHOW_NODE_OUTPUT="$($SLURM_SCONTROL show node $HOSTNAME)"
+                    if [[ $SHOW_NODE_OUTPUT == *"State=REBOOT "* ]]; then
+                        MSG="Temporarily keeping $HOSTNAME in DRAIN during reboot until NHC can online it"
+                        echo "$0:  $MSG"
+                        $SLURM_SCONTROL update State=DRAIN NodeName=$HOSTNAME Reason="$LEADER $MSG"
+                    fi
+
+                    # `Reboot ASAP` has already been cleared, so exit early
                     if [[ "$OLD_NOTE_LEADER" != "Reboot" && "$OLD_NOTE" != "ASAP" ]]; then
-                        echo "$0:  $HOSTNAME already set to retain DRAIN flag after reboot"
                         exit 0
                     fi
                     ;;
             esac
+            # `scontrol reboot asap` will set the node state to REBOOT+DRAIN and
+            # reason to `Reboot ASAP`. Then, after boot, and after NHC runs
+            # once, Slurm will return the node to IDLE and if reason ==
+            # `Reboot ASAP`, Slurm will also clear the DRAIN flag. We want
+            # NHC to clear the DRAIN flag, not Slurm, so clear the `Reboot ASAP`
+            # reason by not preserving it below.
+            # See https://slurm.schedmd.com/scontrol.html --> reboot
+
             # If there's an old note that wasn't set by NHC, preserve it.
             if [[ "$OLD_NOTE_LEADER" != "none" && "$OLD_NOTE_LEADER" != "$LEADER" && "$OLD_NOTE_LEADER" != "Reboot" && "$OLD_NOTE" != "ASAP" ]]; then
                 LEADER="$OLD_NOTE_LEADER"
